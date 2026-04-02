@@ -36,6 +36,7 @@ func main() {
 	defer pool.Close()
 
 	logger.Debug("initializing HTTP server")
+	
 	httpServer := core_http_server.NewHTTPServer(
 		core_http_server.NewConfigMust(),
 		logger,
@@ -44,6 +45,7 @@ func main() {
 		core_http_middleware.Panic(logger),
 		core_http_middleware.Trace(),
 	)
+	
 	apiVersionRouter := core_http_server.NewApiVersionRouter(core_http_server.ApiVersion1)
 	httpServer.RegisterApiRouters(apiVersionRouter)
 

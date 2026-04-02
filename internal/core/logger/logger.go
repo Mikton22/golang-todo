@@ -17,22 +17,30 @@ type Logger struct {
 	file *os.File
 }
 
+type ctxKey string
+
+const loggerKey ctxKey = "logger"
+
 func FromContext(ctx context.Context) *Logger {
-	log, ok := ctx.Value("log").(*Logger)
+	log, ok := ctx.Value(loggerKey).(*Logger)
 	if !ok {
 		panic("no logger in context")
 	}
 	return log
 }
 
+func ContextWithLogger(ctx context.Context, l *Logger) context.Context {
+	return context.WithValue(ctx, loggerKey, l)
+}
+
 func NewLogger(config Config) (*Logger, error) {
 	zapLvl := zap.NewAtomicLevel()
 	if err := zapLvl.UnmarshalText([]byte(config.Level)); err != nil {
-		return nil, fmt.Errorf("unmarshal log level: %w", err)
+		return nil, fmt.Errorf("failed to parse log level: %w", err)
 	}
 
 	if err := os.MkdirAll(config.Folder, 0755); err != nil {
-		return nil, fmt.Errorf("mkdir log folder: %w", err)
+		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	timestamp := time.Now().UTC().Format("2006-01-02T15-04-05.000000")
@@ -40,16 +48,13 @@ func NewLogger(config Config) (*Logger, error) {
 		config.Folder,
 		fmt.Sprintf("%s.log", timestamp),
 	)
-
-	logFile, err := os.OpenFile(logFilePath, os.O_CREATE | os.O_WRONLY, 0644)
+	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return nil, fmt.Errorf("open log file: %w", err)
+		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}
-
-	zapConfig := zap.NewDevelopmentConfig()
-	zapConfig.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02T15:04:05.000000")
-
-	zapEncoder := zapcore.NewConsoleEncoder(zapConfig.EncoderConfig)
+	zapConfig := zap.NewDevelopmentEncoderConfig()
+	zapConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02T15:04:05.000000")
+	zapEncoder := zapcore.NewConsoleEncoder(zapConfig)
 
 	core := zapcore.NewTee(
 		zapcore.NewCore(zapEncoder, zapcore.AddSync(os.Stdout), zapLvl),
